@@ -10,6 +10,12 @@ from sensor_msgs.msg import Image
 from std_msgs.msg import Float64MultiArray, Float64
 from cv_bridge import CvBridge, CvBridgeError
 
+last_yellow_image1 =[0,0]
+last_blue_image1 =[0,0]
+last_red_image1 = [0,0]
+last_red_image2  =[0,0]
+last_blue_image2 =[0,0]
+last_yellow_image2 =[0,0]
 
 class image_converter:
 
@@ -24,7 +30,7 @@ class image_converter:
     self.image_sub2 = rospy.Subscriber("/camera2/robot/image_raw",Image,self.callback2)
     # initialize the bridge between openCV and ROS
     self.bridge = CvBridge()
-    self.joint_angles_est = rospy.Publisher("/robot/joint_estimated", Float64MultiArray, queue_size = 3)
+    self.joint_angles_est = rospy.Publisher("/robot/joint_estimated2", Float64MultiArray, queue_size = 3)
     
   # In this method you can focus on detecting the centre of the red circle
   def detect_red(self,image):
@@ -32,13 +38,27 @@ class image_converter:
       mask = cv2.inRange(image, (0 ,0 ,100), (0 ,0 , 255))
       # This applies a dilate that makes the binary region larger (the more iterations the larger it becomes)
       kernel = np.ones((5, 5), np.uint8)
-      mask = cv2.dilate(mask, kernel, iterations=3)
-      # Obtain the moments of the binary image
       M = cv2.moments(mask)
+      mask = cv2.dilate(mask, kernel, iterations=3)
       # Calculate pixel coordinates for the centre of the blob
-      cx = int(M['m10'] / M['m00'])
-      cy = int(M['m01'] / M['m00'])
-      return np.array([cx, cy])
+      if M['m00'] != 0 :
+            cx = int(M['m10'] / M['m00'])
+            cy = int(M['m01'] / M['m00'])
+            if image is self.cv_image1:
+                  last_red_image1[0] = cx
+                  last_red_image1[1] = cy
+                  return np.array([cx, cy])
+            else:
+                  last_red_image2[0] = cx
+                  last_red_image2[1] = cy
+                  return np.array([cx, cy])
+      #this is in case red is blocked by green
+      else:
+            if image is self.cv_image1:
+                  return np.array(last_red_image1)
+            else :
+                  return np.array(last_red_image2)
+
  
 
   # Detecting the centre of the green circle
@@ -51,16 +71,29 @@ class image_converter:
       cy = int(M['m01'] / M['m00'])
       return np.array([cx, cy])
 
-
   # Detecting the centre of the blue circle
   def detect_blue(self,image):
       mask = cv2.inRange(image, (100, 0, 0), (255, 0, 0))
       kernel = np.ones((5, 5), np.uint8)
       mask = cv2.dilate(mask, kernel, iterations=3)
       M = cv2.moments(mask)
-      cx = int(M['m10'] / M['m00'])
-      cy = int(M['m01'] / M['m00'])
-      return np.array([cx, cy])
+      # Calculate pixel coordinates for the centre of the blob
+      if M['m00'] != 0 :
+            cx = int(M['m10'] / M['m00'])
+            cy = int(M['m01'] / M['m00'])
+            if self.cv_image1 is image:
+                  last_blue_image1 = [cx,cy]
+                  return np.array([cx, cy])
+            else:
+                  self.last_blue_image2 = [cx,cy]
+                  return np.array([cx, cy])
+      #this is in case red is blocked by green
+      else:
+            if self.cv_image1 is image:
+                  return np.array(last_blue_image1)
+            else :
+                  return np.array(last_blue_image2)
+
 
   # Detecting the centre of the yellow circle
   def detect_yellow(self,image):
@@ -68,10 +101,24 @@ class image_converter:
       kernel = np.ones((5, 5), np.uint8)
       mask = cv2.dilate(mask, kernel, iterations=3)
       M = cv2.moments(mask)
-      cx = int(M['m10'] / M['m00'])
-      cy = int(M['m01'] / M['m00'])
-      return np.array([cx, cy])
-
+      # Calculate pixel coordinates for the centre of the blob
+      if M['m00'] != 0 :
+            cx = int(M['m10'] / M['m00'])
+            cy = int(M['m01'] / M['m00'])
+            if image is self.cv_image1:
+                  last_yellow_image1[0] = cx
+                  last_yellow_image1[1] = cy
+                  return np.array([cx, cy])
+            else:
+                  last_yellow_image2[0] = cx
+                  last_yellow_image2[1] = cy
+                  return np.array([cx, cy])
+      #this is in case red is blocked by green
+      else:
+            if image is self.cv_image1:
+                  return np.array(last_yellow_image1)
+            else :
+                  return np.array(last_yellow_image2)
 
   # Calculate the conversion from pixel to meter
   def pixel2meter(self,image):
@@ -110,14 +157,13 @@ class image_converter:
     joint_pos = [0.0, 0.0, 0.0]
     #joint angle 1(green), around z-axis
     a = green_3d - yellow_3d
-    joint_pos[0] = np.arctan2(a[0], a[1]) 
+    joint_pos[0] = np.arctan2(a[1], a[2]) 
     #joint angle 3(yellow), around x-axis
-    a = yellow_3d - blue_3d
-    a = self.rotation_matrix_z(joint_pos[0], a) 
+    a = yellow_3d - blue_3d 
     joint_pos[1] = np.arctan2(a[1], a[2])
     #joint angle 4(blue), around y-axis
     a = blue_3d - red_3d
-    a = self.rotation_matrix_z(joint_pos[1], a)
+    a = self.rotation_matrix_x(joint_pos[1], a)
     joint_pos[2] = np.arctan2(a[0], a[2])
     return joint_pos
     
@@ -132,7 +178,7 @@ class image_converter:
   def rotation_matrix_y(self, angle, v):
     M = np.array([
         [np.cos(angle), 0.0, -np.sin(angle)],
-        [0.0         ,  1.0,            0.0],
+        [0.0          , 1.0,            0.0],
         [np.sin(angle), 0.0,  np.cos(angle)]
     ])
     return np.dot(M, v)
@@ -174,7 +220,8 @@ class image_converter:
     cv2.waitKey(1)
     
     message = Float64MultiArray()
-    message.data = np.array(self.detect_joint_angles())
+    #message.data = np.array(self.change_from_planar_to_spatial(self.cv_image1,self.cv_image2))
+    message.data = np.array(self.detect_joint_anglesl())
     self.joint_angles_est.publish(message)
     print(message.data)
   
@@ -188,6 +235,5 @@ def main(args):
   cv2.destroyAllWindows()
 
 # run the code if the node is called
-if __name__ == '__main__':
+if _name_ == '_main_':
     main(sys.argv)
-
