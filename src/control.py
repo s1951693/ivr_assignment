@@ -17,11 +17,12 @@ class control:
     # initialize the node named image_processing
     rospy.init_node('image_processing', anonymous=True)
     # initialize subscribers with the joint values
-    self.joint_angle_sub = rospy.Subscriber("/robot/joint_estimated", Float64MultiArray, self.callback)
+    self.joint_angle_sub = rospy.Subscriber("/robot/joint_estimated2", Float64, self.callback)
     # publishing end-effector position
     self.end_effector = rospy.Publisher("/robot/end_effector", Float64MultiArray, queue_size=3)
     # initialize the bridge between openCV and ROS
     self.bridge = CvBridge()
+
     
   
   def transformation_matrix(self):
@@ -34,27 +35,20 @@ class control:
   		      [joint_angle3+np.pi/2.0, np.pi/2.0, 3.2, 0],
   		      [          joint_angle4,       0.0, 2.8, 0]]
   		     
-  		     
-    T1_4 = [[np.sin(joint_angle1)*np.sin(joint_angle3)*np.cos(joint_angle4) + np.sin(joint_angle1)*np.sin(joint_angle4)*np.cos(joint_angle3), 
-  -np.sin(joint_angle1)*np.sin(joint_angle3)*np.sin(joint_angle4) + np.sin(joint_angle1)*np.cos(joint_angle4)*np.cos(joint_angle3), np.cos(joint_angle1), 3.2*np.sin(joint_angle1)+ 2.8*np.sin(joint_angle1)*np.sin(joint_angle3)],
-  [np.sin(joint_angle3)*np.sin(joint_angle4) - np.cos(joint_angle3)*np.cos(joint_angle3), np.sin(joint_angle3)*np.cos(joint_angle4) + np.sin(joint_angle4)*np.cos(joint_angle3), 0.0, -2.8*np.cos(joint_angle3)],
-  [-np.sin(joint_angle3)*np.cos(joint_angle1)*np.cos(joint_angle4) - np.sin(joint_angle4)*np.cos(joint_angle1)*np.cos(joint_angle3), 
-  np.sin(joint_angle3)*np.sin(joint_angle4)*np.cos(joint_angle1) - np.cos(joint_angle1)*np.cos(joint_angle4)*np.cos(joint_angle3), np.sin(joint_angle1), -2.8*np.sin(joint_angle3)*np.cos(joint_angle1)+ 4],
-  [0.0, 0.0, 0.0, 1.0]]
   
-    K_q = [[3.2*np.sin(joint_angle1)+ 2.8*np.sin(joint_angle1)*np.sin(joint_angle3)],
-           [-2.8*np.cos(joint_angle3)],
-           [-2.8*np.sin(joint_angle3)*np.cos(joint_angle1)+ 4]]
+    K_q = [[2.8*np.sin(joint_angle1)*np.sin(joint_angle3)*np.cos(joint_angle4)+2.8*np.cos(joint_angle1)*np.sin(joint_angle4)+3.2*np.sin(joint_angle1)*np.sin(joint_angle3)],
+           [-2.8*np.cos(joint_angle1)*np.sin(joint_angle3)*np.sin(joint_angle4)-2.8*np.sin(joint_angle1)*np.sin(joint_angle4)-3.2*np.cos(joint_angle1)*np.sin(joint_angle3)],
+           [2.8*np.cos(joint_angl3)*np.cos(joint_angle4)+3.2*np.cos(joint_angle3)+4]]
     return K_q
   
   def callback(self, data):
-    
     self.angles = data.data
 
     message = Float64MultiArray()
+    
     message.data = np.array(self.transformation_matrix())
     self.end_effector.publish(message)
-    print(message.data)
+
     
 # call the class
 def main(args):
@@ -66,6 +60,5 @@ def main(args):
   cv2.destroyAllWindows()
 
 # run the code if the node is called
-if __name__ == '__main__':
+if _name_ == '_main_':
     main(sys.argv)
-
